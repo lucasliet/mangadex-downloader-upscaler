@@ -38,17 +38,16 @@ NCNN_BINARY_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2
 
 class NCNNUpscaler:
     def __init__(self, scale: int = 2, concurrency: int = 2):
-        self.scale = scale
+        self.requested_scale = scale
         self.concurrency = concurrency
         self._shutdown_event = threading.Event()
         self._model_name = "realesrgan-x4plus-anime"
+        self.model_scale = 4
 
         if scale == 2:
-            log.warning(
-                f"NCNN upscaler on macOS only supports 4x scale. "
-                f"Automatically using 4x instead of {scale}x."
+            log.info(
+                f"NCNN upscaler will use 4x model and downscale to {scale}x"
             )
-            self.scale = 4
 
         self.bin_dir = self._get_package_bin_dir()
         self.models_dir = self.bin_dir / "models"
@@ -58,7 +57,7 @@ class NCNNUpscaler:
         self._ensure_models()
 
         log.info(
-            f"Real-ESRGAN NCNN initialized (scale={self.scale}x, "
+            f"Real-ESRGAN NCNN initialized (scale={self.requested_scale}x, "
             f"device=ncnn-vulkan, model={self._model_name})"
         )
 
@@ -158,7 +157,7 @@ class NCNNUpscaler:
         marker = self._get_marker_path(image_path)
         with open(marker, 'w') as f:
             f.write(
-                f"scale={self.scale}\nmodel={self._model_name}\n"
+                f"scale={self.requested_scale}\nmodel={self._model_name}\n"
                 f"device=ncnn-vulkan\nhash={img_hash}\nsource_hash={source_hash}\n"
             )
 
@@ -173,7 +172,7 @@ class NCNNUpscaler:
             with open(marker, 'r') as f:
                 content = f.read()
 
-            if f"scale={self.scale}" not in content:
+            if f"scale={self.requested_scale}" not in content:
                 return False
 
             stored_hash = None
@@ -198,6 +197,28 @@ class NCNNUpscaler:
         except Exception:
             return False
 
+    def _downscale_image(self, image_path: str, target_scale: int):
+        try:
+            from PIL import Image
+            
+            img = Image.open(image_path)
+            original_width, original_height = img.size
+            
+            scale_ratio = target_scale / self.model_scale
+            new_width = int(original_width * scale_ratio)
+            new_height = int(original_height * scale_ratio)
+            
+            resized = img.resize((new_width, new_height), Image.LANCZOS)
+            resized.save(image_path)
+            
+            log.debug(
+                f"Downscaled {os.path.basename(image_path)} from "
+                f"{original_width}x{original_height} to {new_width}x{new_height}"
+            )
+        except Exception as e:
+            log.error(f"Failed to downscale {image_path}: {e}")
+            raise
+
     def _upscale_single_image(self, input_path: str) -> tuple[str, bool]:
         if self._is_already_upscaled(input_path):
             filename = os.path.basename(input_path)
@@ -217,7 +238,7 @@ class NCNNUpscaler:
                 "-i", input_path,
                 "-o", input_path,
                 "-n", self._model_name,
-                "-s", str(self.scale),
+                "-s", str(self.model_scale),
                 "-m", str(self.models_dir),
                 "-f", output_format
             ]
@@ -232,6 +253,9 @@ class NCNNUpscaler:
             if result.returncode != 0:
                 log.error(f"NCNN upscale failed for {input_path}: {result.stderr}")
                 return (input_path, False)
+
+            if self.requested_scale != self.model_scale:
+                self._downscale_image(input_path, self.requested_scale)
 
             self._mark_as_upscaled(input_path, source_hash)
             filename = os.path.basename(input_path)
@@ -261,7 +285,7 @@ class NCNNUpscaler:
 
         log.info(
             f"Upscaling {len(valid_images)} images with Real-ESRGAN NCNN "
-            f"(scale={self.scale}x)..."
+            f"(scale={self.requested_scale}x)..."
         )
 
         failed = []
