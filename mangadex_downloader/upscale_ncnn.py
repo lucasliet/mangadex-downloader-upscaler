@@ -37,9 +37,8 @@ NCNN_BINARY_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2
 
 
 class NCNNUpscaler:
-    def __init__(self, scale: int = 2, concurrency: int = 2):
+    def __init__(self, scale: int = 2):
         self.requested_scale = scale
-        self.concurrency = concurrency
         self._shutdown_event = threading.Event()
         self._model_name = "realesrgan-x4plus-anime"
         self.model_scale = 4

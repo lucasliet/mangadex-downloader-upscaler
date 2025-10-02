@@ -263,12 +263,6 @@ def get_args(argv):
         default=config.upscale_scale,
         help="Upscale factor (default: 2)",
     )
-    upscale_group.add_argument(
-        "--upscale-concurrency",
-        type=int,
-        default=config.upscale_concurrency,
-        help="Number of images to upscale in parallel (default: 2)",
-    )
 
     # Language related
     lang_group = parser.add_argument_group("Language")

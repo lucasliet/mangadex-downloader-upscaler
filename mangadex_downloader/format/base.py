@@ -83,8 +83,7 @@ class BaseFormat:
             from ..downloader import _cleanup_jobs
 
             self._upscaler = create_upscaler(
-                self.config.upscale_scale,
-                self.config.upscale_concurrency
+                self.config.upscale_scale
             )
             _cleanup_jobs.append(self._upscaler.shutdown)
 

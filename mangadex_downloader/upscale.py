@@ -25,7 +25,6 @@ import os
 import platform
 import threading
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 try:
@@ -43,7 +42,7 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 class Upscaler:
-    def __init__(self, scale: int = 2, concurrency: int = 2):
+    def __init__(self, scale: int = 2):
         if not REALESRGAN_AVAILABLE:
             raise ImportError(
                 "Real-ESRGAN dependencies not installed. "
@@ -51,7 +50,6 @@ class Upscaler:
             )
 
         self.scale = scale
-        self.concurrency = concurrency
         self.upsampler = None
         self._shutdown_event = threading.Event()
 
@@ -203,11 +201,11 @@ class Upscaler:
         except Exception:
             return False
 
-    def _upscale_single_image(self, input_path: str, retry: bool = False):
+    def _upscale_single_image(self, input_path: str):
         if self._is_already_upscaled(input_path):
             filename = os.path.basename(input_path)
             log.info(f"Already upscaled: {filename}")
-            return (input_path, True, False)
+            return (input_path, True)
 
         from .format.utils import create_file_hash_sha256
         source_hash = create_file_hash_sha256(input_path)
@@ -230,17 +228,12 @@ class Upscaler:
             self._mark_as_upscaled(input_path, source_hash)
 
             filename = os.path.basename(input_path)
-            if not retry:
-                log.info(f"Upscaled: {filename}")
-            else:
-                log.info(f"Retry successful: {filename}")
+            log.info(f"Upscaled: {filename}")
 
-            return (input_path, True, False)
+            return (input_path, True)
         except Exception as e:
-            is_mem_error = self._is_memory_error(e)
-            error_type = "memory error" if is_mem_error else "error"
-            log.error(f"Error upscaling {input_path} ({error_type}): {e}")
-            return (input_path, False, is_mem_error)
+            log.error(f"Error upscaling {input_path}: {e}")
+            return (input_path, False)
 
     def process_images(self, image_paths: List[str]) -> List[str]:
         if not image_paths:
@@ -257,84 +250,24 @@ class Upscaler:
 
         log.info(f"Upscaling {len(valid_images)} images with Real-ESRGAN (scale={self.scale}x)...")
 
-        failed_memory = []
-        failed_other = []
+        failed = []
 
         try:
-            with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
-                futures = {
-                    executor.submit(self._upscale_single_image, img): img
-                    for img in valid_images
-                }
+            for img in valid_images:
+                if self._shutdown_event.is_set():
+                    log.info("Upscale cancelled by user")
+                    break
 
-                for future in as_completed(futures):
-                    if self._shutdown_event.is_set():
-                        log.info("Upscale cancelled by user")
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
+                path, success = self._upscale_single_image(img)
+                if not success:
+                    failed.append(path)
 
-                    path, success, is_mem_error = future.result()
-                    if not success:
-                        if is_mem_error:
-                            failed_memory.append(path)
-                        else:
-                            failed_other.append(path)
         except KeyboardInterrupt:
             log.info("Upscale interrupted, cancelling pending operations...")
             self._shutdown_event.set()
             raise
 
-        if failed_memory and not self._shutdown_event.is_set():
-            log.warning(
-                f"Retrying {len(failed_memory)} images with concurrency=1 "
-                "due to memory errors..."
-            )
-
-            if hasattr(torch, 'mps') and torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-            elif torch.cuda.is_available():
-                torch.cuda.empty_cache()
-
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                futures = {
-                    executor.submit(self._upscale_single_image, img, retry=True): img
-                    for img in failed_memory
-                }
-
-                still_failed = []
-                for future in as_completed(futures):
-                    if self._shutdown_event.is_set():
-                        executor.shutdown(wait=False, cancel_futures=True)
-                        break
-
-                    path, success, is_mem_error = future.result()
-                    if not success and is_mem_error:
-                        still_failed.append(path)
-
-                if still_failed and not self._shutdown_event.is_set():
-                    log.warning(
-                        f"Moving {len(still_failed)} images to CPU "
-                        "due to persistent memory errors..."
-                    )
-
-                    original_device = self.upsampler.device
-                    self.upsampler.device = torch.device('cpu')
-                    self.upsampler.model = self.upsampler.model.cpu()
-
-                    for img in still_failed:
-                        if self._shutdown_event.is_set():
-                            break
-
-                        path, success, _ = self._upscale_single_image(img, retry=True)
-                        if not success:
-                            failed_other.append(path)
-
-                    self.upsampler.device = original_device
-                    self.upsampler.model = self.upsampler.model.to(original_device)
-
-    # No progress bar to reset
-
-        total_failed = len(failed_other)
+        total_failed = len(failed)
         total_success = len(valid_images) - total_failed
 
         if total_failed > 0:
@@ -348,9 +281,9 @@ class Upscaler:
         return image_paths
 
 
-def create_upscaler(scale: int = 2, concurrency: int = 2):
+def create_upscaler(scale: int = 2):
     if platform.system() == 'Darwin':
         from .upscale_ncnn import NCNNUpscaler
-        return NCNNUpscaler(scale, concurrency)
+        return NCNNUpscaler(scale)
     else:
-        return Upscaler(scale, concurrency)
+        return Upscaler(scale)
