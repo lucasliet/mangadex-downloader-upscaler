@@ -89,11 +89,21 @@ class NCNNUpscaler:
         self.models_dir.mkdir(parents=True, exist_ok=True)
 
         import urllib.request
+        from tqdm import tqdm
 
         zip_path = self.bin_dir / "ncnn-vulkan.zip"
 
         try:
-            urllib.request.urlretrieve(NCNN_BINARY_URL, zip_path)
+            with tqdm(unit='B', unit_scale=True, unit_divisor=1024, 
+                      miniters=1, desc="Downloading NCNN binary") as pbar:
+                def reporthook(block_num, block_size, total_size):
+                    if pbar.total is None and total_size > 0:
+                        pbar.total = total_size
+                    downloaded = block_num * block_size
+                    if downloaded <= total_size:
+                        pbar.update(block_size)
+                
+                urllib.request.urlretrieve(NCNN_BINARY_URL, zip_path, reporthook=reporthook)
 
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 for member in zip_ref.namelist():

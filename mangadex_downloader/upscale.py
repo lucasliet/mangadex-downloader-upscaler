@@ -114,6 +114,7 @@ class Upscaler:
 
     def _download_model(self, model_path: str):
         import urllib.request
+        from tqdm import tqdm
 
         model_dir = os.path.dirname(model_path)
         os.makedirs(model_dir, exist_ok=True)
@@ -126,7 +127,18 @@ class Upscaler:
             url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth"
 
         log.info(f"Downloading Real-ESRGAN model from {url}...")
-        urllib.request.urlretrieve(url, model_path)
+        
+        with tqdm(unit='B', unit_scale=True, unit_divisor=1024, 
+                  miniters=1, desc=f"Downloading {model_name}") as pbar:
+            def reporthook(block_num, block_size, total_size):
+                if pbar.total is None and total_size > 0:
+                    pbar.total = total_size
+                downloaded = block_num * block_size
+                if downloaded <= total_size:
+                    pbar.update(block_size)
+            
+            urllib.request.urlretrieve(url, model_path, reporthook=reporthook)
+        
         log.info(f"Model downloaded to {model_path}")
 
     def _is_image(self, path: Path) -> bool:
