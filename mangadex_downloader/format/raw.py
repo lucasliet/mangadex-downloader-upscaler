@@ -123,13 +123,8 @@ class Raw(BaseFormat):
                 pbm.get_pages_pb().reset()
 
                 if self.config.upscale:
-                    from ..network import Net
-                    if hasattr(Net.mangadex, '_worker_report'):
-                        Net.mangadex._worker_report.wait()
-
                     try:
-                        from ..upscale import Upscaler
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
                     except ImportError:
                         pbm.logger.warning(
@@ -273,13 +268,8 @@ class RawVolume(BaseFormat):
                 images = self.get_images(chap_class, images, volume_path, count)
 
                 if self.config.upscale:
-                    from ..network import Net
-                    if hasattr(Net.mangadex, '_worker_report'):
-                        Net.mangadex._worker_report.wait()
-
                     try:
-                        from ..upscale import Upscaler
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
                     except ImportError:
                         pbm.logger.warning(
@@ -424,13 +414,8 @@ class RawSingle(BaseFormat):
                 images = self.get_images(chap_class, images, path, count)
 
                 if self.config.upscale:
-                    from ..network import Net
-                    if hasattr(Net.mangadex, '_worker_report'):
-                        Net.mangadex._worker_report.wait()
-
                     try:
-                        from ..upscale import Upscaler
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
                     except ImportError:
                         pbm.logger.warning(

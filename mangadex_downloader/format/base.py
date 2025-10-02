@@ -77,6 +77,19 @@ class BaseFormat:
         if config.progress_bar_layout == "stacked":
             pbm.stacked = True
 
+    def _get_or_create_upscaler(self):
+        if not hasattr(self, '_upscaler'):
+            from ..upscale import create_upscaler
+            from ..downloader import _cleanup_jobs
+
+            self._upscaler = create_upscaler(
+                self.config.upscale_scale,
+                self.config.upscale_concurrency
+            )
+            _cleanup_jobs.append(self._upscaler.shutdown)
+
+        return self._upscaler
+
     def cleanup(self):
         # Shutdown some worker threads
         self.chapter_read_marker.shutdown(blocking=True)
@@ -126,22 +139,34 @@ class BaseFormat:
                             with open(marker_path, 'r') as f:
                                 content = f.read()
 
-                            # Extract hash from marker
+                            # Extract hash and source_hash from marker
                             stored_hash = None
+                            stored_source_hash = None
                             for line in content.splitlines():
                                 if line.startswith("hash="):
                                     stored_hash = line.split("=", 1)[1]
-                                    break
+                                elif line.startswith("source_hash="):
+                                    stored_source_hash = line.split("=", 1)[1]
 
-                            # Validate upscaled hash
-                            if stored_hash:
+                            # Validate upscaled hash and source hash
+                            if stored_hash and stored_source_hash:
                                 from .utils import create_file_hash_sha256
                                 current_hash = create_file_hash_sha256(img_path)
-                                if current_hash == stored_hash:
+
+                                # Check if upscaled file is intact
+                                if current_hash != stored_hash:
+                                    pbm.logger.debug(f"Upscaled hash mismatch for {img_name}")
+                                    os.remove(marker_path)
+                                # Check if source image changed on server
+                                elif stored_source_hash != img_hash:
+                                    pbm.logger.debug(
+                                        f"Source image updated on server for {img_name}, "
+                                        "removing marker to re-download"
+                                    )
+                                    os.remove(marker_path)
+                                else:
                                     pbm.logger.debug(f"Upscaled image verified: {img_name}")
                                     verified_upscaled = True
-                                else:
-                                    pbm.logger.debug(f"Upscaled hash mismatch for {img_name}")
                         except Exception as e:
                             pbm.logger.debug(f"Failed to verify upscaled marker for {img_name}: {e}")
 
@@ -520,14 +545,8 @@ class ConvertedChaptersFormat(BaseConvertedFormat):
                 pbm.get_pages_pb().reset()
 
                 if self.config.upscale:
-                    from ..network import Net
                     try:
-                        from ..upscale import create_upscaler
-                        from ..downloader import _cleanup_jobs
-
-                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
-                        _cleanup_jobs.append(upscaler.shutdown)
-
+                        upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
                     except ImportError:
                         pbm.logger.warning(
@@ -725,12 +744,7 @@ class ConvertedVolumesFormat(BaseConvertedFormat):
 
                 if self.config.upscale:
                     try:
-                        from ..upscale import create_upscaler
-                        from ..downloader import _cleanup_jobs
-
-                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
-                        _cleanup_jobs.append(upscaler.shutdown)
-
+                        upscaler = self._get_or_create_upscaler()
                         ims = upscaler.process_images(ims)
                     except ImportError:
                         pbm.logger.warning(
@@ -939,12 +953,7 @@ class ConvertedSingleFormat(BaseConvertedFormat):
 
                 if self.config.upscale:
                     try:
-                        from ..upscale import create_upscaler
-                        from ..downloader import _cleanup_jobs
-
-                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
-                        _cleanup_jobs.append(upscaler.shutdown)
-
+                        upscaler = self._get_or_create_upscaler()
                         ims = upscaler.process_images(ims)
                     except ImportError:
                         pbm.logger.warning(

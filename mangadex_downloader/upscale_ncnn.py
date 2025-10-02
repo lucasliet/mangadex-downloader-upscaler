@@ -137,7 +137,7 @@ class NCNNUpscaler:
     def shutdown(self):
         self._shutdown_event.set()
 
-    def _mark_as_upscaled(self, image_path: str):
+    def _mark_as_upscaled(self, image_path: str, source_hash: str):
         from .format.utils import create_file_hash_sha256
 
         img_hash = create_file_hash_sha256(image_path)
@@ -145,7 +145,7 @@ class NCNNUpscaler:
         with open(marker, 'w') as f:
             f.write(
                 f"scale={self.scale}\nmodel={self._model_name}\n"
-                f"device=ncnn-vulkan\nhash={img_hash}\n"
+                f"device=ncnn-vulkan\nhash={img_hash}\nsource_hash={source_hash}\n"
             )
 
     def _is_already_upscaled(self, image_path: str) -> bool:
@@ -190,6 +190,9 @@ class NCNNUpscaler:
             log.info(f"Already upscaled: {filename}")
             return (input_path, True)
 
+        from .format.utils import create_file_hash_sha256
+        source_hash = create_file_hash_sha256(input_path)
+
         try:
             ext = Path(input_path).suffix.lower()
             format_map = {'.jpg': 'jpg', '.jpeg': 'jpg', '.png': 'png', '.webp': 'webp'}
@@ -209,14 +212,14 @@ class NCNNUpscaler:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=300
             )
 
             if result.returncode != 0:
                 log.error(f"NCNN upscale failed for {input_path}: {result.stderr}")
                 return (input_path, False)
 
-            self._mark_as_upscaled(input_path)
+            self._mark_as_upscaled(input_path, source_hash)
             filename = os.path.basename(input_path)
             log.info(f"Upscaled: {filename}")
 

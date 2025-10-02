@@ -230,7 +230,7 @@ class QueueWorker(threading.Thread):
 
         return fut.result()
 
-    def wait(self, timeout=None):
+    def wait(self):
         """Wait for all queued jobs to complete"""
         self._queue.join()
 

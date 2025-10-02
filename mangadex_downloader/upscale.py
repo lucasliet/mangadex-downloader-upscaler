@@ -145,14 +145,14 @@ class Upscaler:
         """Signal upscaler to stop processing"""
         self._shutdown_event.set()
 
-    def _mark_as_upscaled(self, image_path: str):
+    def _mark_as_upscaled(self, image_path: str, source_hash: str):
         from .format.utils import create_file_hash_sha256
 
         img_hash = create_file_hash_sha256(image_path)
         marker = self._get_marker_path(image_path)
         with open(marker, 'w') as f:
             f.write(
-                f"scale={self.scale}\nmodel={getattr(self, '_model_name', 'unknown')}\ndevice={getattr(self, '_device', 'unknown')}\nhash={img_hash}\n"
+                f"scale={self.scale}\nmodel={getattr(self, '_model_name', 'unknown')}\ndevice={getattr(self, '_device', 'unknown')}\nhash={img_hash}\nsource_hash={source_hash}\n"
             )
 
     def _is_already_upscaled(self, image_path: str) -> bool:
@@ -197,6 +197,9 @@ class Upscaler:
             log.info(f"Already upscaled: {filename}")
             return (input_path, True, False)
 
+        from .format.utils import create_file_hash_sha256
+        source_hash = create_file_hash_sha256(input_path)
+
         img = cv2.imread(input_path, cv2.IMREAD_UNCHANGED)
 
         if img is None:
@@ -212,7 +215,7 @@ class Upscaler:
                 cv2.imwrite(input_path, output, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
             else:
                 cv2.imwrite(input_path, output)
-            self._mark_as_upscaled(input_path)
+            self._mark_as_upscaled(input_path, source_hash)
 
             filename = os.path.basename(input_path)
             if not retry:
