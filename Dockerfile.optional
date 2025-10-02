@@ -3,23 +3,36 @@ FROM python:3.12
 COPY . /app
 WORKDIR /app
 
-# Setup rust
-RUN apt update && apt install wget
-ENV RUSTUP_HOME=/usr/local/rustup \
+# Setup rust and install dependencies in single layer to reduce image size
+RUN apt update && apt install -y wget build-essential && \
+    # Install Rust
+    wget https://sh.rustup.rs -O rustup.sh && \
+    chmod +x ./rustup.sh && \
+    RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=1.84.0
-RUN wget https://sh.rustup.rs -O rustup.sh
-RUN chmod +x ./rustup.sh
-RUN ./rustup.sh -y --no-modify-path --profile minimal --default-toolchain $RUST_VERSION
-RUN chmod -R a+w $RUSTUP_HOME $CARGO_HOME;
-RUN rustup --version; 
-RUN cargo --version;
-RUN rustc --version;
+    ./rustup.sh -y --no-modify-path --profile minimal --default-toolchain 1.84.0 && \
+    chmod -R a+w /usr/local/rustup /usr/local/cargo && \
+    # Update PATH for current session
+    export PATH=/usr/local/cargo/bin:$PATH && \
+    # Install Python dependencies with optimizations
+    pip install --upgrade pip && \
+    # Install torch first with CPU-only version to save space
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    # Install other dependencies
+    pip install --no-cache-dir .[optional] && \
+    # Clean up to reduce image size
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /root/.cache/pip && \
+    rm -f rustup.sh && \
+    # Clean cargo cache (skip if fails)
+    /usr/local/cargo/bin/cargo cache --autoclean || true
 
-# Install mangadex-downloader
-RUN pip install --upgrade pip
-RUN pip install .[optional]
+# Set environment variables
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
 
 WORKDIR /downloads
 
