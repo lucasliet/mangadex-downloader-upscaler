@@ -522,10 +522,10 @@ class ConvertedChaptersFormat(BaseConvertedFormat):
                 if self.config.upscale:
                     from ..network import Net
                     try:
-                        from ..upscale import Upscaler
+                        from ..upscale import create_upscaler
                         from ..downloader import _cleanup_jobs
 
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
                         _cleanup_jobs.append(upscaler.shutdown)
 
                         images = upscaler.process_images(images)
@@ -725,10 +725,10 @@ class ConvertedVolumesFormat(BaseConvertedFormat):
 
                 if self.config.upscale:
                     try:
-                        from ..upscale import Upscaler
+                        from ..upscale import create_upscaler
                         from ..downloader import _cleanup_jobs
 
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
                         _cleanup_jobs.append(upscaler.shutdown)
 
                         ims = upscaler.process_images(ims)
@@ -939,10 +939,10 @@ class ConvertedSingleFormat(BaseConvertedFormat):
 
                 if self.config.upscale:
                     try:
-                        from ..upscale import Upscaler
+                        from ..upscale import create_upscaler
                         from ..downloader import _cleanup_jobs
 
-                        upscaler = Upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
+                        upscaler = create_upscaler(self.config.upscale_scale, self.config.upscale_concurrency)
                         _cleanup_jobs.append(upscaler.shutdown)
 
                         ims = upscaler.process_images(ims)

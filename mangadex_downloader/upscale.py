@@ -22,6 +22,7 @@
 
 import logging
 import os
+import platform
 import threading
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -330,3 +331,11 @@ class Upscaler:
             log.info(f"Successfully upscaled {total_success} images with Real-ESRGAN")
 
         return image_paths
+
+
+def create_upscaler(scale: int = 2, concurrency: int = 2):
+    if platform.system() == 'Darwin':
+        from .upscale_ncnn import NCNNUpscaler
+        return NCNNUpscaler(scale, concurrency)
+    else:
+        return Upscaler(scale, concurrency)
