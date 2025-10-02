@@ -98,14 +98,28 @@ class NCNNUpscaler:
 
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 for member in zip_ref.namelist():
+                    # Prevent path traversal
+                    if '..' in member or member.startswith('/'):
+                        log.warning(f"Skipping suspicious zip member: {member}")
+                        continue
+
                     if member.endswith("realesrgan-ncnn-vulkan"):
                         zip_ref.extract(member, self.bin_dir)
                         extracted_path = self.bin_dir / member
+                        # Verify extracted path is within bin_dir
+                        if not extracted_path.resolve().is_relative_to(self.bin_dir.resolve()):
+                            extracted_path.unlink()
+                            raise ValueError(f"Path traversal detected in zip: {member}")
                         extracted_path.rename(self.binary_path)
                     elif member.startswith("models/") and member.endswith((".bin", ".param")):
                         member_info = zip_ref.getinfo(member)
                         member_info.filename = Path(member).name
                         zip_ref.extract(member_info, self.models_dir)
+                        extracted_model = self.models_dir / member_info.filename
+                        # Verify extracted model path is within models_dir
+                        if not extracted_model.resolve().is_relative_to(self.models_dir.resolve()):
+                            extracted_model.unlink()
+                            raise ValueError(f"Path traversal detected in model: {member}")
 
             self.binary_path.chmod(0o755)
             log.info(f"NCNN binary and models downloaded to {self.bin_dir}")
