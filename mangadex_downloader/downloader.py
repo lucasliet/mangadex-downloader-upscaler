@@ -335,6 +335,4 @@ class ChapterPageDownloader(FileDownloader):
             "bytes": size,
             "duration": _time,
         }
-        from .config import _conf
-        if not _conf._skip_report:
-            Net.mangadex.report(data)
+        Net.mangadex.report(data)

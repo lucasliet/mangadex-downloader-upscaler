@@ -239,97 +239,94 @@ class Upscaler:
             log.debug("No valid images to upscale")
             return image_paths
 
-        from .config import _conf
-        _conf._skip_report = True
+        log.info(f"Upscaling {len(valid_images)} images with Real-ESRGAN (scale={self.scale}x)...")
+
+        failed_memory = []
+        failed_other = []
+
         try:
-            log.info(f"Upscaling {len(valid_images)} images with Real-ESRGAN (scale={self.scale}x)...")
+            with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
+                futures = {
+                    executor.submit(self._upscale_single_image, img): img
+                    for img in valid_images
+                }
 
-            failed_memory = []
-            failed_other = []
+                for future in as_completed(futures):
+                    if self._shutdown_event.is_set():
+                        log.info("Upscale cancelled by user")
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
 
-            try:
-                with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
-                    futures = {
-                        executor.submit(self._upscale_single_image, img): img
-                        for img in valid_images
-                    }
+                    path, success, is_mem_error = future.result()
+                    if not success:
+                        if is_mem_error:
+                            failed_memory.append(path)
+                        else:
+                            failed_other.append(path)
+        except KeyboardInterrupt:
+            log.info("Upscale interrupted, cancelling pending operations...")
+            self._shutdown_event.set()
+            raise
 
-                    for future in as_completed(futures):
+        if failed_memory and not self._shutdown_event.is_set():
+            log.warning(
+                f"Retrying {len(failed_memory)} images with concurrency=1 "
+                "due to memory errors..."
+            )
+
+            if hasattr(torch, 'mps') and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            elif torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                futures = {
+                    executor.submit(self._upscale_single_image, img, retry=True): img
+                    for img in failed_memory
+                }
+
+                still_failed = []
+                for future in as_completed(futures):
+                    if self._shutdown_event.is_set():
+                        executor.shutdown(wait=False, cancel_futures=True)
+                        break
+
+                    path, success, is_mem_error = future.result()
+                    if not success and is_mem_error:
+                        still_failed.append(path)
+
+                if still_failed and not self._shutdown_event.is_set():
+                    log.warning(
+                        f"Moving {len(still_failed)} images to CPU "
+                        "due to persistent memory errors..."
+                    )
+
+                    original_device = self.upsampler.device
+                    self.upsampler.device = torch.device('cpu')
+                    self.upsampler.model = self.upsampler.model.cpu()
+
+                    for img in still_failed:
                         if self._shutdown_event.is_set():
-                            log.info("Upscale cancelled by user")
-                            executor.shutdown(wait=False, cancel_futures=True)
                             break
 
-                        path, success, is_mem_error = future.result()
+                        path, success, _ = self._upscale_single_image(img, retry=True)
                         if not success:
-                            if is_mem_error:
-                                failed_memory.append(path)
-                            else:
-                                failed_other.append(path)
-            except KeyboardInterrupt:
-                log.info("Upscale interrupted, cancelling pending operations...")
-                self._shutdown_event.set()
-                raise
+                            failed_other.append(path)
 
-            if failed_memory and not self._shutdown_event.is_set():
-                log.warning(
-                    f"Retrying {len(failed_memory)} images with concurrency=1 "
-                    "due to memory errors..."
-                )
+                    self.upsampler.device = original_device
+                    self.upsampler.model = self.upsampler.model.to(original_device)
 
-                if hasattr(torch, 'mps') and torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
-                elif torch.cuda.is_available():
-                    torch.cuda.empty_cache()
+    # No progress bar to reset
 
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    futures = {
-                        executor.submit(self._upscale_single_image, img, retry=True): img
-                        for img in failed_memory
-                    }
+        total_failed = len(failed_other)
+        total_success = len(valid_images) - total_failed
 
-                    still_failed = []
-                    for future in as_completed(futures):
-                        if self._shutdown_event.is_set():
-                            executor.shutdown(wait=False, cancel_futures=True)
-                            break
+        if total_failed > 0:
+            log.warning(
+                f"Upscale completed: {total_success} successful, "
+                f"{total_failed} failed"
+            )
+        else:
+            log.info(f"Successfully upscaled {total_success} images with Real-ESRGAN")
 
-                        path, success, is_mem_error = future.result()
-                        if not success and is_mem_error:
-                            still_failed.append(path)
-
-                    if still_failed and not self._shutdown_event.is_set():
-                        log.warning(
-                            f"Moving {len(still_failed)} images to CPU "
-                            "due to persistent memory errors..."
-                        )
-
-                        original_device = self.upsampler.device
-                        self.upsampler.device = torch.device('cpu')
-                        self.upsampler.model = self.upsampler.model.cpu()
-
-                        for img in still_failed:
-                            if self._shutdown_event.is_set():
-                                break
-
-                            path, success, _ = self._upscale_single_image(img, retry=True)
-                            if not success:
-                                failed_other.append(path)
-
-                        self.upsampler.device = original_device
-                        self.upsampler.model = self.upsampler.model.to(original_device)
-
-            total_failed = len(failed_other)
-            total_success = len(valid_images) - total_failed
-
-            if total_failed > 0:
-                log.warning(
-                    f"Upscale completed: {total_success} successful, "
-                    f"{total_failed} failed"
-                )
-            else:
-                log.info(f"Successfully upscaled {total_success} images with Real-ESRGAN")
-
-            return image_paths
-        finally:
-            _conf._skip_report = False
+        return image_paths
