@@ -26,6 +26,7 @@ import subprocess
 import threading
 import zipfile
 from pathlib import Path
+import importlib.util
 from typing import List
 
 log = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ class NCNNUpscaler:
             )
             self.scale = 4
 
-        self.bin_dir = Path(__file__).parent / "bin"
+        self.bin_dir = self._get_package_bin_dir()
         self.models_dir = self.bin_dir / "models"
         self.binary_path = self.bin_dir / "realesrgan-ncnn-vulkan"
 
@@ -61,6 +62,24 @@ class NCNNUpscaler:
             f"device=ncnn-vulkan, model={self._model_name})"
         )
 
+
+    def _get_package_bin_dir(self) -> Path:
+        """
+        Get the correct bin directory for the installed package.
+        This ensures binaries are stored in the package location, not the current working directory.
+        """
+        try:
+            spec = importlib.util.find_spec('mangadex_downloader')
+            if spec is not None and spec.origin is not None:
+                package_path = Path(spec.origin).parent
+                log.debug(f"Using package directory: {package_path}")
+                return package_path / "bin"
+        except Exception as e:
+            log.debug(f"Could not determine package location: {e}")
+        
+        fallback_path = Path(__file__).parent / "bin"
+        log.debug(f"Using fallback directory: {fallback_path}")
+        return fallback_path
     def _ensure_binary(self):
         if self.binary_path.exists():
             return
