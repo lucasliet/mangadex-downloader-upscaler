@@ -87,12 +87,8 @@ Import statements are placed inside functions/methods (not at module level) to b
 Example pattern:
 ```python
 def process_images(self, image_paths):
-    from .config import _conf  # Lazy import
-    _conf._skip_report = True
-    try:
-        # ... processing logic
-    finally:
-        _conf._skip_report = False
+    from .config import config  # Lazy import
+    # ... processing logic using config
 ```
 
 **3. Async Background Processing**
@@ -126,8 +122,6 @@ Located in `upscale.py`. Uses PyTorch-based Real-ESRGAN for 2x/4x image upscalin
 
 4. **Graceful Shutdown**: Uses `threading.Event` (`_shutdown_event`) to handle Ctrl+C, cancelling pending operations without file corruption.
 
-5. **Report Suppression**: Sets `_conf._skip_report = True` during upscaling to prevent network reports for this local post-processing step.
-
 ### Download Flow with Hash Verification
 
 In `format/base.py`, the `save_chapter_images()` method:
@@ -150,13 +144,6 @@ In `format/base.py`, the `save_chapter_images()` method:
 - Background thread processing `queue.Queue`
 - Used for non-blocking download reports to MangaDex
 - Graceful shutdown with `threading.Event`
-
-### Configuration Flag: `_skip_report`
-
-Internal state variable (not persisted to config.json) used to coordinate between upscaler and network layer:
-- Set to `True` in `upscale.py:process_images()` (wrapped in try/finally)
-- Checked in `downloader.py:_report()` before queuing reports
-- Prevents telemetry during local upscaling operations
 
 ## File Structure Reference
 
@@ -223,10 +210,6 @@ These modules have circular dependencies resolved via lazy imports:
 
 **Solution**: Always use lazy imports (import inside functions) when adding cross-module references.
 
-**Specific examples in codebase:**
-- `upscale.py:242` - imports `_conf` inside `process_images()`
-- `downloader.py:338` - imports `_conf` inside `_report()`
-
 ### Memory Error Detection
 The `Upscaler._is_memory_error()` method detects OOM by checking for these strings in exception messages:
 - "out of memory"
@@ -242,11 +225,6 @@ The `Upscaler._is_memory_error()` method detects OOM by checking for these strin
 **Package Installation:**
 - After ANY code change, run `uv pip install --upgrade ".[optional]"`
 - Python caches modules, so reinstallation is mandatory for changes to take effect
-
-**Network Reports During Upscale:**
-- Reports queued during download may still execute during upscale
-- This is expected behavior and doesn't affect functionality
-- The `_skip_report` flag only prevents NEW reports from being added
 
 ### Development Best Practices
 
@@ -287,7 +265,6 @@ mangadex-dl-conf --view
 - Implemented SHA256-based marker system for skip verification
 - Added graceful shutdown with `threading.Event`
 - Implemented memory error retry strategy with CPU fallback
-- Added `_skip_report` flag to disable reports during upscale
 - Fixed circular imports with lazy import pattern
 
 **Configuration additions:**
