@@ -259,7 +259,7 @@ def get_args(argv):
     upscale_group.add_argument(
         "--upscale-scale",
         type=int,
-        choices=[2, 3, 4],
+        choices=[2, 4],
         default=config.upscale_scale,
         help="Upscale factor (default: 2)",
     )
