@@ -283,7 +283,7 @@ class Upscaler:
 
 def create_upscaler(scale: int = 2):
     if platform.system() == 'Darwin':
-        from .upscale_ncnn import NCNNUpscaler
-        return NCNNUpscaler(scale)
+        from .upscale_coreml import CoreMLUpscaler
+        return CoreMLUpscaler(scale)
     else:
         return Upscaler(scale)

@@ -9,3 +9,4 @@ basicsr @ git+https://github.com/XPixelGroup/BasicSR.git@8d56e3a045f9fb3e1d8872f
 facexlib>=0.2.5
 gfpgan>=1.3.5
 realesrgan>=0.3.0
+coremltools>=7.0; platform_system=="Darwin"

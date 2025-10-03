@@ -104,23 +104,60 @@ The `QueueWorker` class handles asynchronous tasks (like sending download report
 
 ### Real-ESRGAN Upscaling Feature
 
+The application supports AI-based image upscaling with platform-specific backends:
+
+**Backend Selection (upscale.py:284):**
+- **macOS (Darwin)**: Core ML with Apple Neural Engine (`upscale_coreml.py`)
+- **Linux/Windows**: PyTorch with CUDA/CPU (`upscale.py`)
+
+#### Core ML Backend (macOS Only)
+
+Located in `upscale_coreml.py`. Uses Apple's Core ML framework with Neural Engine acceleration.
+
+**Key features:**
+1. **Model**: `RealESRGAN_x2plus.mlpackage` (2x native upscaling)
+   - Downloaded automatically from `http://upscale.aidoku.app/models/RealESRGAN_x2plus.mlpackage.zip`
+   - Stored in `mangadex_downloader/models/`
+   - Size: ~50MB compressed
+
+2. **Neural Engine Optimization**:
+   - Uses `coremltools.ComputeUnit.ALL` for hardware acceleration
+   - Zero CPU/GPU usage during upscaling (Activity Monitor won't show activity)
+   - Automatic model compilation and caching by Core ML
+
+3. **Image Processing**:
+   - Direct PIL Image input/output (no numpy conversion needed)
+   - Preserves original image format (JPEG quality=95, PNG optimized)
+   - Handles RGB and RGBA modes automatically
+
+4. **Requirements**:
+   - macOS 12+ (Monterey or newer)
+   - Apple Silicon (M1/M2/M3/M4) recommended for Neural Engine
+   - Intel Macs supported (uses CPU/GPU fallback)
+   - Dependency: `coremltools>=7.0` (installed with `[optional]` extras)
+
+#### PyTorch Backend (Linux/Windows)
+
 Located in `upscale.py`. Uses PyTorch-based Real-ESRGAN for 2x/4x image upscaling.
 
-**Key mechanisms:**
+**Key features:**
+- CUDA GPU acceleration (NVIDIA)
+- CPU fallback for systems without GPU
+- Models: `RealESRGAN_x2plus.pth` (2x), `realesr-general-x4v3.pth` (4x)
+- Three-tier retry strategy for memory errors
+
+#### Shared Mechanisms (All Backends)
+
 1. **Marker System**: Creates `<image>.upscaled` files containing:
    - Scale factor
    - Model name
-   - Device (cuda/mps/cpu)
+   - Device (coreml-ane/cuda/mps/cpu)
    - SHA256 hash of upscaled image
+   - Source hash (original image hash for validation)
 
 2. **Hash Verification**: On subsequent runs, compares SHA256 hashes to detect modified images and re-upscale only if needed.
 
-3. **Three-Tier Retry Strategy** for memory errors:
-   - Attempt 1: Configured concurrency (default: 2 workers)
-   - Attempt 2: Single worker (concurrency=1)
-   - Attempt 3: CPU fallback with `torch.device('cpu')`
-
-4. **Graceful Shutdown**: Uses `threading.Event` (`_shutdown_event`) to handle Ctrl+C, cancelling pending operations without file corruption.
+3. **Graceful Shutdown**: Uses `threading.Event` (`_shutdown_event`) to handle Ctrl+C, cancelling pending operations without file corruption.
 
 ### Download Flow with Hash Verification
 
@@ -152,7 +189,8 @@ In `format/base.py`, the `save_chapter_images()` method:
 - `mangadex_downloader/main.py`: Main orchestration logic
 - `mangadex_downloader/downloader.py`: `FileDownloader`, `ChapterPageDownloader`
 - `mangadex_downloader/network.py`: HTTP session, rate limiting, `QueueWorker`
-- `mangadex_downloader/upscale.py`: Real-ESRGAN integration
+- `mangadex_downloader/upscale.py`: Real-ESRGAN PyTorch backend (Linux/Windows)
+- `mangadex_downloader/upscale_coreml.py`: Real-ESRGAN Core ML backend (macOS)
 - `mangadex_downloader/fetcher.py`: MangaDex API wrapper
 
 **Format System:**
@@ -206,6 +244,7 @@ To add processing steps, modify this method or override in format subclass.
 These modules have circular dependencies resolved via lazy imports:
 - `downloader.py` ↔ `config/config.py`
 - `upscale.py` ↔ `config/config.py`
+- `upscale_coreml.py` ↔ `config/config.py`
 - `network.py` ↔ various modules
 
 **Solution**: Always use lazy imports (import inside functions) when adding cross-module references.
