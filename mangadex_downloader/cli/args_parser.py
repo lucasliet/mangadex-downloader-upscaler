@@ -261,7 +261,7 @@ def get_args(argv):
         type=int,
         choices=[2, 4],
         default=config.upscale_scale,
-        help="Upscale factor (default: 2)",
+        help="Upscale factor (default: 4)",
     )
 
     # Language related

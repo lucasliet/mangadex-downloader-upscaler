@@ -153,9 +153,9 @@ Located in `upscale.py`. Uses PyTorch-based Real-ESRGAN for 2x/4x image upscalin
   - **2x**: `RealESRGAN_x2plus.pth`
     - URL: `https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth`
     - SHA256: `49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb`
-  - **4x**: `realesr-general-x4v3.pth`
-    - URL: `https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth`
-    - SHA256: `8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292`
+  - **4x**: `RealESRGAN_x4plus_anime_6B.pth`
+    - URL: `https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth`
+    - SHA256: `f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da`
   - Downloaded automatically on first use with SHA256 validation
 - CUDA GPU acceleration (NVIDIA)
 - CPU fallback for systems without GPU

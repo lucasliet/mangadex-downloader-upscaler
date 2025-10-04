@@ -49,28 +49,34 @@ A command-line tool to download manga from [MangaDex](https://mangadex.org/), wr
 - Legacy MangaDex url support
 - Save as raw images, EPUB, PDF, Comic Book Archive (.cbz or .cb7)
 - Respect API rate limit
-- **Optional image upscaling (2x) using Real-ESRGAN with hardware acceleration.**
+- **Optional image upscaling (2x or 4x) using Real-ESRGAN with hardware acceleration.**
 - Hash-based verification and caching for upscaled images to avoid unnecessary reprocessing
 
 ***And ability to not download oneshot chapter***
 
 ## Image Upscaling <a id="image-upscaling"></a>
 
-This tool supports optional 2x image upscaling using Real-ESRGAN. The implementation is optimized for different platforms to provide the best performance.
+This tool supports optional 2x or 4x image upscaling using Real-ESRGAN. The implementation is optimized for different platforms to provide the best performance.
 
 ### Backends
 - **macOS (Apple Silicon):** Uses a native Core ML backend that leverages the Apple Neural Engine for hardware acceleration. This results in extremely fast and efficient upscaling with minimal CPU/GPU usage.
+  - 2x model: `RealESRGAN_x2plus`
+  - 4x model: `RealESRGAN_x4plus_anime_6B` (optimized for anime/manga, default)
 - **Linux / Windows:** Uses a PyTorch-based backend that can leverage CUDA-enabled NVIDIA GPUs for acceleration, with a fallback to CPU if a compatible GPU is not available.
+  - 2x model: `RealESRGAN_x2plus`
+  - 4x model: `RealESRGAN_x4plus_anime_6B` (optimized for anime/manga, default)
 
 ### How to Use
-To enable upscaling, simply add the `--upscale` flag to your download command. The tool will automatically select the best backend for your system.
+To enable upscaling, simply add the `--upscale` flag to your download command. The tool will automatically select the best backend for your system and use 4x scaling by default.
 
 **Basic usage:**
 ```shell
-mangadex-dl "insert MangaDex URL here" --upscale
+mangadex-dl "insert MangaDex URL here" --upscale                     # 4x upscaling (default)
+mangadex-dl "insert MangaDex URL here" --upscale --upscale-scale 2   # 2x upscaling
+mangadex-dl "insert MangaDex URL here" --upscale --upscale-scale 4   # 4x upscaling (explicit)
 ```
 
-The upscaler will perform a 2x scaling on all downloaded images. The process is cached, so running the command again on the same images will not re-upscale them unless the original files have changed.
+The upscaler will perform scaling on all downloaded images. The process is cached, so running the command again on the same images will not re-upscale them unless the original files have changed.
 
 For the best experience, especially on macOS, ensure you have the optional dependencies installed:
 ```shell

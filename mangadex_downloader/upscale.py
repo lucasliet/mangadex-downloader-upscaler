@@ -42,12 +42,12 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 MODEL_HASHES = {
     'RealESRGAN_x2plus.pth': '49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb',
-    'realesr-general-x4v3.pth': '8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292'
+    'RealESRGAN_x4plus_anime_6B.pth': 'f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da'
 }
 
 
 class Upscaler:
-    def __init__(self, scale: int = 2):
+    def __init__(self, scale: int = 4):
         if not REALESRGAN_AVAILABLE:
             raise ImportError(
                 "Real-ESRGAN dependencies not installed. "
@@ -61,11 +61,17 @@ class Upscaler:
         self._init_model()
 
     def _init_model(self):
+        if self.scale not in [2, 4]:
+            raise ValueError(
+                f"Unsupported scale factor: {self.scale}. "
+                f"PyTorch upscaler supports: 2, 4"
+            )
+
         if self.scale == 2:
             model_name = 'RealESRGAN_x2plus.pth'
             model_scale = 2
         else:
-            model_name = 'realesr-general-x4v3.pth'
+            model_name = 'RealESRGAN_x4plus_anime_6B.pth'
             model_scale = 4
 
         model = RRDBNet(
@@ -127,7 +133,7 @@ class Upscaler:
         if model_name == 'RealESRGAN_x2plus.pth':
             url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"
         else:
-            url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth"
+            url = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 
         log.info(f"Downloading Real-ESRGAN model from {url}...")
         

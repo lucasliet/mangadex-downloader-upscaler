@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.2.1-upscale
+
+### Improvements
+
+- **Standardized 4x Upscaling Model**: Switched PyTorch backend from `realesr-general-x4v3.pth` to `RealESRGAN_x4plus_anime_6B.pth`
+  - All backends now use the anime-optimized 4x model for consistent quality
+  - New SHA256: `f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da`
+- **4x is now the default scale**: Changed default upscale factor from 2x to 4x for better quality
+  - Use `--upscale-scale 2` to explicitly use 2x upscaling if needed
+- **Enhanced Validation**: Added strict scale validation (2 or 4 only) at config level
+- **Removed 3x Support**: Eliminated legacy 3x upscaling code paths for clarity
+
+### Breaking Changes
+
+- **Default upscale scale changed from 2x to 4x**: Existing users relying on 2x default behavior will need to explicitly set `--upscale-scale 2`
+- Users who manually downloaded `realesr-general-x4v3.pth` will need to re-download the new model (automatic on first use)
+
 ## v3.2.0-upscale
 
 ### New Features
