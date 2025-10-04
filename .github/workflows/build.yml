@@ -6,154 +6,7 @@ on:
     tags:
       - v*
 
-env:
-  TEST_TAG: mansuf/mangadex-downloader:test
-  TEST_OPTIONAL_TAG: mansuf/mangadex-downloader:test-optional
-  DOCKERHUB_LATEST_TAG: mansuf/mangadex-downloader:latest
-  DOCKERHUB_LATEST_OPTIONAL_TAG: mansuf/mangadex-downloader:latest-optional
-  AWS_ECR_LATEST_TAG: public.ecr.aws/n3n5b0s8/mangadex-downloader:latest
-  AWS_ECR_LATEST_OPTIONAL_TAG: public.ecr.aws/n3n5b0s8/mangadex-downloader:latest-optional
-
 jobs:
-  docker-build-test:
-    name: Docker build test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_SECRET_TOKEN }}
-      
-      - name: Build and export to Docker
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          load: true
-          tags: ${{ env.TEST_TAG }}
-
-      - name: Build and export to Docker (with optional dependencies)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.optional
-          load: true
-          tags: ${{ env.TEST_OPTIONAL_TAG }}
-      
-      - name: Test docker image
-        run: |
-          docker run --rm ${{ env.TEST_TAG }} --version
-
-      - name: Test docker image (with optional dependencies)
-        run: |
-          docker run --rm ${{ env.TEST_OPTIONAL_TAG }} --version     
-
-  docker-dockerhub-build-and-push:
-    name: Docker build and push (hub.docker.com)
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && github.repository == 'mansuf/mangadex-downloader'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_SECRET_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: |
-            linux/amd64
-            linux/arm64
-            linux/arm/v7
-            linux/arm/v6
-          push: true
-          tags: |
-            ${{ env.DOCKERHUB_LATEST_TAG }}
-            mansuf/mangadex-downloader:${{ github.ref_name }}
-
-      - name: Build and push (with optional dependencies)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.optional
-          platforms: |
-            linux/amd64
-            linux/arm64
-            linux/arm/v7
-          push: true
-          tags: |
-            ${{ env.DOCKERHUB_LATEST_OPTIONAL_TAG }}
-            mansuf/mangadex-downloader:${{ github.ref_name }}-optional
-
-  docker-aws-ecr-build-and-push:
-    name: Docker build and push (public.ecr.aws)
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') && github.repository == 'mansuf/mangadex-downloader'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to AWS ECR 
-        uses: docker/login-action@v3
-        with:
-          registry: public.ecr.aws
-          username: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: |
-            linux/amd64
-            linux/arm64
-            linux/arm/v7
-            linux/arm/v6
-          push: true
-          tags: |
-            ${{ env.AWS_ECR_LATEST_TAG }}
-            public.ecr.aws/mansuf/mangadex-downloader:${{ github.ref_name }}
-
-      - name: Build and push (with optional dependencies)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.optional
-          platforms: |
-            linux/amd64
-            linux/arm64
-            linux/arm/v7
-          push: true
-          tags: |
-            ${{ env.AWS_ECR_LATEST_OPTIONAL_TAG  }}
-            public.ecr.aws/mansuf/mangadex-downloader:${{ github.ref_name }}-optional
-
   windows-build:
     name: Build app & docs (Windows)
     runs-on: windows-latest
@@ -164,7 +17,7 @@ jobs:
     steps:
       # Make sure cancels CI when tags is released
       - name: Cancel previous runs
-        if: startsWith(github.ref, 'refs/tags/') && github.repository == 'mansuf/mangadex-downloader'
+        if: startsWith(github.ref, 'refs/tags/') && github.repository == 'lucasliet/mangadex-downloader-uploader'
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
@@ -187,20 +40,15 @@ jobs:
 
       - name: Install required libraries
         run: |
-          py -${{ matrix.python-version }}-64 -m pip install -U pip
-          py -${{ matrix.python-version }}-64 -m pip install -U wheel setuptools
+         py -${{ matrix.python-version }}-64 -m pip install -U pip
+          py -${{ matrix.python-version }}-64 -m pip install -U wheel pyinstaller setuptools
           py -${{ matrix.python-version }}-64 -m pip install -U .[optional]
+          py -${{ matrix.python-version }}-64 -m pip install -U .[docs]
 
           py -${{ matrix.python-version }}-32 -m pip install -U pip
-          py -${{ matrix.python-version }}-32 -m pip install -U wheel setuptools
+          py -${{ matrix.python-version }}-32 -m pip install -U wheel pyinstaller setuptools
           py -${{ matrix.python-version }}-32 -m pip install -U .[optional]
-
-          # Install custom Pyinstaller
-          git clone https://github.com/mansuf/mangadex-dl-bootloader.git
-          cd mangadex-dl-bootloader\ready_to_use
-          py -${{ matrix.python-version }}-64 -m pip install -U .
-          py -${{ matrix.python-version }}-32 -m pip install -U .
-          cd ../..
+          py -${{ matrix.python-version }}-32 -m pip install -U .[docs]
 
       - name: Test imports
         run: |
@@ -288,7 +136,7 @@ jobs:
           echo "${File_x86} Hash = ${Hash_x86}"
 
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/') && contains(env.python_version, '3.12') && github.repository == 'mansuf/mangadx-downloader'
+        if: startsWith(github.ref, 'refs/tags/') && contains(env.python_version, '3.12') && github.repository == 'lucasliet/mangadex-downloader-uploader'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.GIRHUB_REF_NAME }}
