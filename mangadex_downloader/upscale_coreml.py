@@ -20,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import hashlib
 import logging
 import os
 import threading
@@ -40,7 +41,8 @@ log = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
-MODEL_URL = "http://upscale.aidoku.app/models/RealESRGAN_x2plus.mlpackage.zip"
+MODEL_URL = "https://upscale.aidoku.app/models/RealESRGAN_x2plus.mlpackage.zip"
+MODEL_SHA256 = "66a473d1bd38f6f9df1d0ffb9851aad7c5bc1a41ae6be29c55dd48775744bfe7"
 
 
 class CoreMLUpscaler:
@@ -136,6 +138,22 @@ class CoreMLUpscaler:
                         pbar.update(block_size)
 
                 urllib.request.urlretrieve(MODEL_URL, zip_path, reporthook=reporthook)
+
+            # Validate hash
+            hasher = hashlib.sha256()
+            with open(zip_path, 'rb') as f:
+                while chunk := f.read(8192):
+                    hasher.update(chunk)
+            downloaded_hash = hasher.hexdigest()
+
+            if downloaded_hash.lower() != MODEL_SHA256.lower():
+                zip_path.unlink()
+                raise RuntimeError(
+                    f"Model integrity check failed. "
+                    f"Expected SHA256: {MODEL_SHA256}, got: {downloaded_hash}"
+                )
+            
+            log.debug("Model integrity check passed.")
 
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 members = zip_ref.namelist()
@@ -273,7 +291,7 @@ class CoreMLUpscaler:
 
                 tile_batch = np.expand_dims(tile, axis=0)
                 predictions = self.model.predict({'input': tile_batch})
-                upscaled_tile = predictions[list(predictions.keys())[0]][0]
+                upscaled_tile = next(iter(predictions.values()))[0]
 
                 out_y = y * scale
                 out_x = x * scale
@@ -313,31 +331,43 @@ class CoreMLUpscaler:
 
         try:
             img = Image.open(input_path)
-
             original_mode = img.mode
-            if original_mode not in ('RGB', 'RGBA'):
+            has_alpha = original_mode in ('RGBA', 'LA') or (original_mode == 'P' and 'transparency' in img.info)
+            alpha = None
+
+            if has_alpha:
+                log.debug(f"Image has alpha channel, separating for upscale.")
+                alpha = img.getchannel('A')
+                img = img.convert('RGB')
+
+            elif original_mode not in ('RGB', 'L'):
                 img = img.convert('RGB')
 
             img_array = np.array(img).astype(np.float32) / 255.0
+            if img_array.ndim == 2: # Grayscale
+                img_array = np.stack([img_array] * 3, axis=-1)
+            
             img_array = np.transpose(img_array, (2, 0, 1))
 
-            C, H, W = img_array.shape
+            _, H, W = img_array.shape
 
             if H > 256 or W > 256:
                 output_array = self._tile_upscale(img_array)
             else:
                 img_batch = np.expand_dims(img_array, axis=0)
                 predictions = self.model.predict({'input': img_batch})
-                output_array = predictions[list(predictions.keys())[0]][0]
+                output_array = next(iter(predictions.values()))[0]
 
             output_array = np.transpose(output_array, (1, 2, 0))
-
             output_array = (output_array * 255.0).clip(0, 255).astype(np.uint8)
 
-            output_img = Image.fromarray(output_array)
+            output_img = Image.fromarray(output_array, 'RGB')
 
-            if original_mode == 'RGBA' and output_img.mode == 'RGB':
-                output_img = output_img.convert('RGBA')
+            if has_alpha and alpha:
+                log.debug("Re-applying alpha channel.")
+                new_size = output_img.size
+                alpha_resized = alpha.resize(new_size, Image.Resampling.BICUBIC)
+                output_img.putalpha(alpha_resized)
 
             ext = Path(input_path).suffix.lower()
             if ext in ('.jpg', '.jpeg'):
