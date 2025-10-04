@@ -1,5 +1,41 @@
 # Changelog
 
+## v3.2.0-upscale
+
+### New Features
+
+- **Image Upscaling Support**: Added Real-ESRGAN upscaling functionality with `--upscale` flag
+  - Implements Core ML backend for macOS (Apple Silicon) with Neural Engine acceleration
+  - PyTorch-based backend for Linux/Windows with CUDA support
+  - Hash-based caching to avoid reprocessing already upscaled images
+  - 2x and 4x upscaling options via `--upscale-scale` flag
+
+### Platform Support
+
+- **macOS ARM64 Build**: Added native support for Apple Silicon (M1/M2/M3) with optimized Core ML upscaling
+  - Includes automatic quarantine attribute removal script (`FIRST_RUN.command`) for macOS security
+  - Pre-configured for seamless execution without Gatekeeper issues
+
+### CI/CD Improvements
+
+- Refactored GitHub Actions workflow to support multi-platform builds
+  - Separate build jobs for Windows (x64/x86) and macOS (ARM64)
+  - Unified release job that aggregates artifacts from all platforms
+  - Automated hash generation (SHA-256) for release binaries
+
+### Documentation
+
+- Updated README with comprehensive upscaling instructions
+- Added Python version requirements (3.11 or 3.12 only)
+- Updated funding information and fork attribution
+- Added Claude Code GitHub Workflow integration
+
+### Technical Details
+
+- Fork of [mansuf/mangadex-downloader](https://github.com/mansuf/mangadex-downloader)
+- Optimized for Apple Silicon with hardware-accelerated ML inference
+- Maintains compatibility with original features and APIs
+
 ## v3.1.4
 
 ### Fix bugs

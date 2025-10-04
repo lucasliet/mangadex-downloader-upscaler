@@ -10,12 +10,16 @@ jobs:
   windows-build:
     name: Build app & docs (Windows)
     runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/')
     strategy:
       matrix:
-        python-version: [ '3.11', '3.12' ]
-
+        python-version: ['3.12']
+    outputs:
+      x64_hash: ${{ steps.get_hash.outputs.mangadex_dl_x64_hash }}
+      x86_hash: ${{ steps.get_hash.outputs.mangadex_dl_x86_hash }}
+      x64_file_name: ${{ steps.get_hash.outputs.File_x64 }}
+      x86_file_name: ${{ steps.get_hash.outputs.File_x86 }}
     steps:
-      # Make sure cancels CI when tags is released
       - name: Cancel previous runs
         if: startsWith(github.ref, 'refs/tags/') && github.repository == 'lucasliet/mangadex-downloader-uploader'
         uses: styfle/cancel-workflow-action@0.9.1
@@ -40,11 +44,10 @@ jobs:
 
       - name: Install required libraries
         run: |
-         py -${{ matrix.python-version }}-64 -m pip install -U pip
+          py -${{ matrix.python-version }}-64 -m pip install -U pip
           py -${{ matrix.python-version }}-64 -m pip install -U wheel pyinstaller setuptools
           py -${{ matrix.python-version }}-64 -m pip install -U .[optional]
           py -${{ matrix.python-version }}-64 -m pip install -U .[docs]
-
           py -${{ matrix.python-version }}-32 -m pip install -U pip
           py -${{ matrix.python-version }}-32 -m pip install -U wheel pyinstaller setuptools
           py -${{ matrix.python-version }}-32 -m pip install -U .[optional]
@@ -52,7 +55,6 @@ jobs:
 
       - name: Test imports
         run: |
-          # I..... have no idea for this
           mangadex-dl --version
 
       - name: Get python version
@@ -60,23 +62,14 @@ jobs:
           $PythonVersion = (python --version)
           Write-Output "python_version=${PythonVersion}" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      # Build mangadex-downloader with PyInstaller
-      # only allow python 3.13
-
-      - name: Setup python (x86)
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x86
-
       - name: Compile script
-        if: ${{ contains(env.python_version, '3.12') }}
+        if: contains(env.python_version, '3.12')
         run: |
           py -${{ matrix.python-version }}-64 -m PyInstaller "mangadex-dl_x64.spec" --distpath "./dist_x64"
           py -${{ matrix.python-version }}-32 -m PyInstaller "mangadex-dl_x86.spec" --distpath "./dist_x86"
 
       - name: Run compiled script
-        if: ${{ contains(env.python_version, '3.12') }}
+        if: contains(env.python_version, '3.12')
         run: |
           & ".\dist_x64\mangadex-dl_x64\mangadex-dl_x64.exe" --version
           & ".\dist_x86\mangadex-dl_x86\mangadex-dl_x86.exe" --version
@@ -84,7 +77,6 @@ jobs:
       - name: Cleanup build
         if: contains(env.python_version, '3.12')
         run: |
-          # x86 executable
           copy "LICENSE" "dist_x86\mangadex-dl_x86"
           copy "README.md" "dist_x86\mangadex-dl_x86"
           copy "docs\changelog.md" "dist_x86\mangadex-dl_x86"
@@ -94,8 +86,6 @@ jobs:
           Rename-Item -Path "dist_x86\mangadex-dl_x86\mangadex-dl_x86.exe" -NewName "mangadex-dl.exe"
           Rename-Item -Path "dist_x86\mangadex-dl_x86" -NewName "mangadex-dl"
           Compress-Archive -Path "dist_x86\mangadex-dl" -DestinationPath "mangadex-dl_x86_${{ github.ref_name }}.zip"
-
-          # x64 executable
           copy "LICENSE" "dist_x64\mangadex-dl_x64"
           copy "README.md" "dist_x64\mangadex-dl_x64"
           copy "docs\changelog.md" "dist_x64\mangadex-dl_x64"
@@ -106,55 +96,135 @@ jobs:
           Rename-Item -Path "dist_x64\mangadex-dl_x64" -NewName "mangadex-dl"
           Compress-Archive -Path "dist_x64\mangadex-dl" -DestinationPath "mangadex-dl_x64_${{ github.ref_name }}.zip"
 
-      - name: Upload artifact (x64)
-        if: contains(env.python_version, '3.12')
-        uses: actions/upload-artifact@v4
-        with:
-          name: mangadex-dl_x64
-          path: dist_x64/mangadex-dl/
-
-      - name: Upload artifact (x86)
-        if: contains(env.python_version, '3.12')
-        uses: actions/upload-artifact@v4
-        with:
-          name: mangadex-dl_x86
-          path: dist_x86/mangadex-dl/
-
       - name: Get File hash
+        id: get_hash
         if: contains(env.python_version, '3.12')
         run: |
           $File_x86 = "mangadex-dl_x86_${{ github.ref_name }}.zip"
           $File_x64 = "mangadex-dl_x64_${{ github.ref_name }}.zip"
-
           $Hash_x86 = (Get-FileHash -Algorithm SHA256 ${File_x86}).Hash.ToLower()
           $Hash_x64 = (Get-FileHash -Algorithm SHA256 ${File_x64}).Hash.ToLower()
-
-          echo "mangadex_dl_x64_hash=${Hash_x64}" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "mangadex_dl_x86_hash=${Hash_x86}" | Out-File -FilePath $env:GITHUB_ENV -Append
-
+          echo "mangadex_dl_x64_hash=${Hash_x64}" >> $GITHUB_OUTPUT
+          echo "mangadex_dl_x86_hash=${Hash_x86}" >> $GITHUB_OUTPUT
+          echo "File_x64=${File_x64}" >> $GITHUB_OUTPUT
+          echo "File_x86=${File_x86}" >> $GITHUB_OUTPUT
           echo "${File_x64} Hash = ${Hash_x64}"
           echo "${File_x86} Hash = ${Hash_x86}"
 
+      - name: Upload artifact (Windows)
+        if: contains(env.python_version, '3.12')
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            mangadex-dl_x64_${{ github.ref_name }}.zip
+            mangadex-dl_x86_${{ github.ref_name }}.zip
+
+  macos-build:
+    name: Build app & docs (macOS)
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    outputs:
+      hash: ${{ steps.get_hash.outputs.hash }}
+      file_name: ${{ steps.get_hash.outputs.file_name }}
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install required libraries
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U wheel pyinstaller setuptools
+          python -m pip install -U .[optional]
+          python -m pip install -U .[docs]
+
+      - name: Compile script
+        run: |
+          python -m PyInstaller "mangadex-dl_x64.spec" --distpath "./dist_macos"
+
+      - name: Run compiled script
+        run: |
+          ./dist_macos/mangadex-dl_x64/mangadex-dl_x64 --version
+
+      - name: Cleanup build
+        run: |
+          cp LICENSE dist_macos/mangadex-dl_x64/
+          cp README.md dist_macos/mangadex-dl_x64/
+          cp docs/changelog.md dist_macos/mangadex-dl_x64/
+          echo "${{ github.ref_name }}" > dist_macos/mangadex-dl_x64/version.txt
+          echo "./mangadex-dl --update" > dist_macos/mangadex-dl_x64/update.sh
+          chmod +x dist_macos/mangadex-dl_x64/update.sh
+          echo "open -a Terminal ." > dist_macos/mangadex-dl_x64/start_terminal.command
+          chmod +x dist_macos/mangadex-dl_x64/start_terminal.command
+          cat > dist_macos/mangadex-dl_x64/FIRST_RUN.command << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          echo "Removing macOS quarantine attributes..."
+          xattr -dr com.apple.quarantine .
+          echo "Done! You can now run mangadex-dl without issues."
+          echo "Press any key to close this window..."
+          read -n 1
+          EOF
+          chmod +x dist_macos/mangadex-dl_x64/FIRST_RUN.command
+          mv dist_macos/mangadex-dl_x64/mangadex-dl_x64 dist_macos/mangadex-dl_x64/mangadex-dl
+          mv dist_macos/mangadex-dl_x64 mangadex-dl_macos
+          xattr -cr mangadex-dl_macos
+          zip -r "mangadex-dl_macos_${{ github.ref_name }}.zip" mangadex-dl_macos
+
+      - name: Get File hash
+        id: get_hash
+        run: |
+          FILE="mangadex-dl_macos_${{ github.ref_name }}.zip"
+          HASH=$(shasum -a 256 $FILE | awk '{print $1}')
+          echo "hash=${HASH}" >> $GITHUB_OUTPUT
+          echo "file_name=${FILE}" >> $GITHUB_OUTPUT
+          echo "${FILE} Hash = ${HASH}"
+
+      - name: Upload artifact (macOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: mangadex-dl_macos_${{ github.ref_name }}.zip
+
+  release:
+    name: Create Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [windows-build, macos-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List files
+        run: ls -R artifacts
+
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/') && contains(env.python_version, '3.12') && github.repository == 'lucasliet/mangadex-downloader-uploader'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.GIRHUB_REF_NAME }}
+          tag_name: ${{ github.ref_name }}
           name: mangadex-downloader ${{ github.ref_name }}
           body: |
             ------
-
             ## Files hash
-
             | Name | SHA-256 |
             | ---- | ------- |
-            | mangadex-dl_x64_${{ github.ref_name }}.zip | ${{ env.mangadex_dl_x64_hash }} |
-            | mangadex-dl_x86_${{ github.ref_name }}.zip | ${{ env.mangadex_dl_x86_hash }} |
-
-            These binaries are for Windows only.
+            | ${{ needs.windows-build.outputs.x64_file_name }} | ${{ needs.windows-build.outputs.x64_hash }} |
+            | ${{ needs.windows-build.outputs.x86_file_name }} | ${{ needs.windows-build.outputs.x86_hash }} |
+            | ${{ needs.macos-build.outputs.file_name }} | ${{ needs.macos-build.outputs.hash }} |
+            Binaries for Windows and macOS.
           files: |
-            mangadex-dl_x64_${{ github.ref_name }}.zip
-            mangadex-dl_x86_${{ github.ref_name }}.zip
+            artifacts/windows-builds/*.zip
+            artifacts/macos-build/*.zip
           draft: true
           prerelease: false
         env:
