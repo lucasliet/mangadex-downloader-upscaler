@@ -183,10 +183,71 @@ jobs:
           name: macos-build
           path: mangadex-dl_macos_${{ github.ref_name }}.zip
 
+  linux-build:
+    name: Build app & docs (Linux)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    outputs:
+      hash: ${{ steps.get_hash.outputs.hash }}
+      file_name: ${{ steps.get_hash.outputs.file_name }}
+    steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install required libraries
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U wheel pyinstaller setuptools
+          python -m pip install -U .[optional]
+          python -m pip install -U .[docs]
+
+      - name: Compile script
+        run: |
+          python -m PyInstaller "mangadex-dl_x64.spec" --distpath "./dist_linux"
+
+      - name: Run compiled script
+        run: |
+          ./dist_linux/mangadex-dl_x64/mangadex-dl_x64 --version
+
+      - name: Cleanup build
+        run: |
+          cp LICENSE dist_linux/mangadex-dl_x64/
+          cp README.md dist_linux/mangadex-dl_x64/
+          cp docs/changelog.md dist_linux/mangadex-dl_x64/
+          echo "${{ github.ref_name }}" > dist_linux/mangadex-dl_x64/version.txt
+          echo "./mangadex-dl --update" > dist_linux/mangadex-dl_x64/update.sh
+          chmod +x dist_linux/mangadex-dl_x64/update.sh
+          mv dist_linux/mangadex-dl_x64/mangadex-dl_x64 dist_linux/mangadex-dl_x64/mangadex-dl
+          mv dist_linux/mangadex-dl_x64 mangadex-dl_linux
+          zip -r "mangadex-dl_linux_${{ github.ref_name }}.zip" mangadex-dl_linux
+
+      - name: Get File hash
+        id: get_hash
+        run: |
+          FILE="mangadex-dl_linux_${{ github.ref_name }}.zip"
+          HASH=$(shasum -a 256 $FILE | awk '{print $1}')
+          echo "hash=${HASH}" >> $GITHUB_OUTPUT
+          echo "file_name=${FILE}" >> $GITHUB_OUTPUT
+          echo "${FILE} Hash = ${HASH}"
+
+      - name: Upload artifact (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: mangadex-dl_linux_${{ github.ref_name }}.zip
+
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [windows-build, macos-build]
+    needs: [windows-build, macos-build, linux-build]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -223,11 +284,13 @@ jobs:
             | ${{ needs.windows-build.outputs.x64_file_name }} | ${{ needs.windows-build.outputs.x64_hash }} |
             | ${{ needs.windows-build.outputs.x86_file_name }} | ${{ needs.windows-build.outputs.x86_hash }} |
             | ${{ needs.macos-build.outputs.file_name }} | ${{ needs.macos-build.outputs.hash }} |
+            | ${{ needs.linux-build.outputs.file_name }} | ${{ needs.linux-build.outputs.hash }} |
 
-            Binaries for Windows and macOS.
+            Binaries for Windows, macOS and Linux.
           files: |
             artifacts/windows-builds/*.zip
             artifacts/macos-build/*.zip
+            artifacts/linux-build/*.zip
           draft: true
           prerelease: false
         env:
