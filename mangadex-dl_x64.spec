@@ -1,19 +1,33 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
+from pathlib import Path
 
 block_cipher = None
 
+# Detect basicsr installation path automatically
+basicsr_path = None
+for path in sys.path:
+    candidate = Path(path) / 'basicsr'
+    if candidate.exists():
+        basicsr_path = candidate
+        break
+
+datas_list = [
+    ('mangadex_downloader/fonts', 'mangadex_downloader/fonts'),
+    ('mangadex_downloader/images', 'mangadex_downloader/images'),
+    ('mangadex_downloader/tracker/sql_files', 'mangadex_downloader/tracker/sql_files'),
+    ('mangadex_downloader/tracker/sql_migrations', 'mangadex_downloader/tracker/sql_migrations'),
+]
+
+if basicsr_path:
+    datas_list.append((str(basicsr_path / 'archs'), 'basicsr/archs'))
 
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('mangadex_downloader/fonts', 'mangadex_downloader/fonts'), 
-        ('mangadex_downloader/images', 'mangadex_downloader/images'),
-        ('mangadex_downloader/tracker/sql_files', 'mangadex_downloader/tracker/sql_files'),
-        ('mangadex_downloader/tracker/sql_migrations', 'mangadex_downloader/tracker/sql_migrations'),
-    ],
+    datas=datas_list,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

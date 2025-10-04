@@ -77,6 +77,18 @@ class BaseFormat:
         if config.progress_bar_layout == "stacked":
             pbm.stacked = True
 
+    def _get_or_create_upscaler(self):
+        if not hasattr(self, '_upscaler'):
+            from ..upscale import create_upscaler
+            from ..downloader import _cleanup_jobs
+
+            self._upscaler = create_upscaler(
+                self.config.upscale_scale
+            )
+            _cleanup_jobs.append(self._upscaler.shutdown)
+
+        return self._upscaler
+
     def cleanup(self):
         # Shutdown some worker threads
         self.chapter_read_marker.shutdown(blocking=True)
@@ -117,8 +129,52 @@ class BaseFormat:
                 # This can be `True`, `False`, or `None`
                 # `True`: Verify success, hash matching
                 # `False`: Verify failed, hash is not matching
+                # Check if image was upscaled and is still intact
+                verified_upscaled = False
+                if self.config.upscale:
+                    marker_path = f"{str(img_path)}.upscaled"
+                    if os.path.exists(marker_path):
+                        try:
+                            with open(marker_path, 'r') as f:
+                                content = f.read()
+
+                            # Extract hash and source_hash from marker
+                            stored_hash = None
+                            stored_source_hash = None
+                            for line in content.splitlines():
+                                if line.startswith("hash="):
+                                    stored_hash = line.split("=", 1)[1]
+                                elif line.startswith("source_hash="):
+                                    stored_source_hash = line.split("=", 1)[1]
+
+                            # Validate upscaled hash and source hash
+                            if stored_hash and stored_source_hash:
+                                from .utils import create_file_hash_sha256
+                                current_hash = create_file_hash_sha256(img_path)
+
+                                # Check if upscaled file is intact
+                                if current_hash != stored_hash:
+                                    pbm.logger.debug(f"Upscaled hash mismatch for {img_name}")
+                                    os.remove(marker_path)
+                                # Check if source image changed on server
+                                elif stored_source_hash != img_hash:
+                                    pbm.logger.debug(
+                                        f"Source image updated on server for {img_name}, "
+                                        "removing marker to re-download"
+                                    )
+                                    os.remove(marker_path)
+                                else:
+                                    pbm.logger.debug(f"Upscaled image verified: {img_name}")
+                                    verified_upscaled = True
+                        except Exception as e:
+                            pbm.logger.debug(f"Failed to verify upscaled marker for {img_name}: {e}")
+
+                # If upscale is valid, consider verified
                 # `None`: Cannot verify, file is not exist (if `path` argument is given)
-                verified = verify_sha256(img_hash, img_path)
+                if verified_upscaled:
+                    verified = True
+                else:
+                    verified = verify_sha256(img_hash, img_path)
 
                 if verified is None:
                     replace = False
@@ -487,6 +543,16 @@ class ConvertedChaptersFormat(BaseConvertedFormat):
                 images = self.get_images(chap_class, images, chapter_path, count)
                 pbm.get_pages_pb().reset()
 
+                if self.config.upscale:
+                    try:
+                        upscaler = self._get_or_create_upscaler()
+                        images = upscaler.process_images(images)
+                    except ImportError:
+                        pbm.logger.warning(
+                            "Upscale dependencies are not installed. Skipping upscale.\n"
+                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                        )
+
                 chapters_pb.update(1)
 
                 pbm.logger.info(
@@ -674,6 +740,17 @@ class ConvertedVolumesFormat(BaseConvertedFormat):
                 self.on_iter_chapter(file_path, chap_class, count)
 
                 ims = self.get_images(chap_class, chap_images, volume_path, count)
+
+                if self.config.upscale:
+                    try:
+                        upscaler = self._get_or_create_upscaler()
+                        ims = upscaler.process_images(ims)
+                    except ImportError:
+                        pbm.logger.warning(
+                            "Upscale dependencies are not installed. Skipping upscale.\n"
+                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                        )
+
                 images.extend(ims)
 
                 self.on_received_images(file_path, chap_class, ims)
@@ -872,6 +949,17 @@ class ConvertedSingleFormat(BaseConvertedFormat):
                 self.on_iter_chapter(file_path, chap_class, count)
 
                 ims = self.get_images(chap_class, chap_images, path, count)
+
+                if self.config.upscale:
+                    try:
+                        upscaler = self._get_or_create_upscaler()
+                        ims = upscaler.process_images(ims)
+                    except ImportError:
+                        pbm.logger.warning(
+                            "Upscale dependencies are not installed. Skipping upscale.\n"
+                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                        )
+
                 self.on_received_images(file_path, chap_class, ims)
                 images.extend(ims)
 
