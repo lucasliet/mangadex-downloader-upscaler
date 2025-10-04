@@ -1,3 +1,6 @@
+
+> **Note:** This is a fork of the original [mangadex-downloader](https://github.com/mansuf/mangadex-downloader) by mansuf, with added features like Core ML-based upscaling for Apple Silicon.
+
 [![pypi-total-downloads](https://img.shields.io/pypi/dm/mangadex-downloader?label=DOWNLOADS&style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
 [![python-ver](https://img.shields.io/pypi/pyversions/mangadex-downloader?style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
 [![pypi-release-ver](https://img.shields.io/pypi/v/mangadex-downloader?style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
@@ -13,6 +16,7 @@ A command-line tool to download manga from [MangaDex](https://mangadex.org/), wr
 ## Table of Contents
 
 - [Key Features](#key-features)
+- [Image Upscaling](#image-upscaling)
 - [Supported formats](#supported-formats)
 - [Installation](#installation)
     - [Python Package Index (PyPI)](#installation-pypi)
@@ -45,12 +49,33 @@ A command-line tool to download manga from [MangaDex](https://mangadex.org/), wr
 - Legacy MangaDex url support
 - Save as raw images, EPUB, PDF, Comic Book Archive (.cbz or .cb7)
 - Respect API rate limit
-- Optional image upscaling (2x or 4x) using Real-ESRGAN
-- macOS uses NCNN backend (4x model) with automatic downscaling to 2x when requested
-- Progress bars for model and binary downloads during first-time setup
+- **Optional image upscaling (2x) using Real-ESRGAN with hardware acceleration.**
 - Hash-based verification and caching for upscaled images to avoid unnecessary reprocessing
 
 ***And ability to not download oneshot chapter***
+
+## Image Upscaling <a id="image-upscaling"></a>
+
+This tool supports optional 2x image upscaling using Real-ESRGAN. The implementation is optimized for different platforms to provide the best performance.
+
+### Backends
+- **macOS (Apple Silicon):** Uses a native Core ML backend that leverages the Apple Neural Engine for hardware acceleration. This results in extremely fast and efficient upscaling with minimal CPU/GPU usage.
+- **Linux / Windows:** Uses a PyTorch-based backend that can leverage CUDA-enabled NVIDIA GPUs for acceleration, with a fallback to CPU if a compatible GPU is not available.
+
+### How to Use
+To enable upscaling, simply add the `--upscale` flag to your download command. The tool will automatically select the best backend for your system.
+
+**Basic usage:**
+```shell
+mangadex-dl "insert MangaDex URL here" --upscale
+```
+
+The upscaler will perform a 2x scaling on all downloaded images. The process is cached, so running the command again on the same images will not re-upscale them unless the original files have changed.
+
+For the best experience, especially on macOS, ensure you have the optional dependencies installed:
+```shell
+pip install "mangadex-downloader[optional]"
+```
 
 ## Supported formats <a id="supported-formats"></a>
 
@@ -81,9 +106,11 @@ You can also install optional dependencies
 - [py7zr](https://pypi.org/project/py7zr/) for cb7 support
 - [orjson](https://pypi.org/project/orjson/) for maximum performance (fast JSON library)
 - [lxml](https://pypi.org/project/lxml/) for EPUB support
-- Real-ESRGAN upscaling: torch, torchvision, opencv-python, realesrgan (and related dependencies)
+- Real-ESRGAN upscaling:
+  - **macOS**: `coremltools>=7.0`
+  - **Linux/Windows**: `torch`, `torchvision`, `opencv-python`, `realesrgan`
 
-Or you can install all optional dependencies
+Or you can install all optional dependencies, which is recommended for the upscaling feature:
 
 ```shell
 # For Windows
@@ -168,19 +195,7 @@ py -3 -m mangadex_downloader "insert MangaDex URL here"
 python3 -m mangadex_downloader "insert MangaDex URL here" 
 ```
 
-
-To upscale images after download (optional):
-
-```shell
-mangadex-dl "insert MangaDex URL here" --upscale
-# choose 4x scale
-mangadex-dl "insert MangaDex URL here" --upscale --upscale-scale 4
-```
-
-Notes:
-- Only scale 2 or 4 are supported (scale=3 was removed).
-- On macOS, the NCNN backend always uses a 4x model; when `--upscale-scale 2` is used, the result is downscaled to 2x with high-quality filtering.
-- For best results, install optional dependencies: `pip install 'mangadex-downloader[optional]'`.
+To upscale images after download, see the [Image Upscaling](#image-upscaling) section for more details.
 
 ### Bundled executable version <a id="usage-bundled-executable-version"></a>
 
@@ -223,7 +238,7 @@ If you like this project, please consider donate to one of these websites:
 
 - [Sociabuzz](https://sociabuzz.com/mansuf/donate)
 - [Ko-fi](https://ko-fi.com/rahmanyusuf)
-- [Github Sponsor](https://github.com/sponsors/mansuf)
+- [Github Sponsor](https://github.com/sponsors/lucasliet)
 
 Any donation amount will be appreciated 💖
 
