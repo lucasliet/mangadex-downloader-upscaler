@@ -126,6 +126,7 @@ class Raw(BaseFormat):
                     try:
                         upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
+                        self._cleanup_upscale_markers(images)
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"
@@ -271,6 +272,7 @@ class RawVolume(BaseFormat):
                     try:
                         upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
+                        self._cleanup_upscale_markers(images)
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"
@@ -417,6 +419,7 @@ class RawSingle(BaseFormat):
                     try:
                         upscaler = self._get_or_create_upscaler()
                         images = upscaler.process_images(images)
+                        self._cleanup_upscale_markers(images)
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"

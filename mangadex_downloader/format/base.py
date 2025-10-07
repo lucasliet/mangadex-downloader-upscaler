@@ -100,6 +100,24 @@ class BaseFormat:
             pbm.close_all()
             pbm.stacked = False
 
+    def _cleanup_upscale_markers(self, image_paths):
+        """Remove .upscaled marker files after successful processing"""
+        if not image_paths:
+            return
+
+        removed_count = 0
+        for img_path in image_paths:
+            marker_path = f"{str(img_path)}.upscaled"
+            if os.path.exists(marker_path):
+                try:
+                    os.remove(marker_path)
+                    removed_count += 1
+                except OSError as exc:
+                    pbm.logger.debug(f"Failed to remove marker {marker_path}: {exc}")
+
+        if removed_count > 0:
+            pbm.logger.debug(f"Removed {removed_count} upscale marker file(s)")
+
     def get_images(self, chap_class, images, path, count):
         imgs = []
         chap = chap_class.chapter

@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.2.2-upscale
+
+### Improvements
+
+- **Removed the unused NCNN upscaling backend**: to reduce maintenance overhead and keep Core ML / PyTorch as the supported engines.
+- **Added cleanup of `.upscaled` marker files**: after successful processing to keep raw downloads tidy.
+- **Adjusted the PyTorch Real-ESRGAN model configuration**: so the 4× anime model uses the correct number of RRDB blocks.
+- **Increased the queue worker shutdown timeout**: to avoid terminating background jobs prematurely during cleanup.
+
 ## v3.2.1-upscale
 
 ### Improvements
