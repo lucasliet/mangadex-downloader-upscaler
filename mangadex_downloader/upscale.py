@@ -70,15 +70,17 @@ class Upscaler:
         if self.scale == 2:
             model_name = 'RealESRGAN_x2plus.pth'
             model_scale = 2
+            num_block = 23
         else:
             model_name = 'RealESRGAN_x4plus_anime_6B.pth'
             model_scale = 4
+            num_block = 6
 
         model = RRDBNet(
             num_in_ch=3,
             num_out_ch=3,
             num_feat=64,
-            num_block=23,
+            num_block=num_block,
             num_grow_ch=32,
             scale=model_scale
         )

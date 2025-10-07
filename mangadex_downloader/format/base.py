@@ -100,6 +100,28 @@ class BaseFormat:
             pbm.close_all()
             pbm.stacked = False
 
+    def _cleanup_upscale_markers(self, image_paths):
+        """Remove .upscaled marker files after successful processing
+
+        Args:
+            image_paths: List of image file paths to clean markers from
+        """
+        if not image_paths:
+            return
+
+        removed_count = 0
+        for img_path in image_paths:
+            marker_path = f"{str(img_path)}.upscaled"
+            if os.path.exists(marker_path):
+                try:
+                    os.remove(marker_path)
+                    removed_count += 1
+                except OSError as e:
+                    pbm.logger.debug(f"Failed to remove marker {marker_path}: {e}")
+
+        if removed_count > 0:
+            pbm.logger.debug(f"Removed {removed_count} upscale marker file(s)")
+
     def get_images(self, chap_class, images, path, count):
         imgs = []
         chap = chap_class.chapter
@@ -550,7 +572,7 @@ class ConvertedChaptersFormat(BaseConvertedFormat):
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"
-                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                            "Install optional deps: pip install 'mangadex-downloader[optional,upscale]'"
                         )
 
                 chapters_pb.update(1)
@@ -748,7 +770,7 @@ class ConvertedVolumesFormat(BaseConvertedFormat):
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"
-                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                            "Install optional deps: pip install 'mangadex-downloader[optional,upscale]'"
                         )
 
                 images.extend(ims)
@@ -957,7 +979,7 @@ class ConvertedSingleFormat(BaseConvertedFormat):
                     except ImportError:
                         pbm.logger.warning(
                             "Upscale dependencies are not installed. Skipping upscale.\n"
-                            "Install optional deps: pip install 'mangadex-downloader[optional]'"
+                            "Install optional deps: pip install 'mangadex-downloader[optional,upscale]'"
                         )
 
                 self.on_received_images(file_path, chap_class, ims)

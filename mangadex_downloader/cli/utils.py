@@ -129,7 +129,7 @@ def cleanup_app():
     # Close all queue workers
     log.debug("Closing all queue workers")
     for worker in queueworker_active_threads:
-        worker.shutdown(blocking=True, blocking_timeout=0.5)
+        worker.shutdown(blocking=True, blocking_timeout=1)
 
 
 class IteratorEmpty(Exception):

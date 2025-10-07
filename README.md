@@ -1,6 +1,3 @@
-
-> **Note:** This is a fork of the original [mangadex-downloader](https://github.com/mansuf/mangadex-downloader) by mansuf, with added features like Core ML-based upscaling for Apple Silicon.
-
 [![pypi-total-downloads](https://img.shields.io/pypi/dm/mangadex-downloader?label=DOWNLOADS&style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
 [![python-ver](https://img.shields.io/pypi/pyversions/mangadex-downloader?style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
 [![pypi-release-ver](https://img.shields.io/pypi/v/mangadex-downloader?style=for-the-badge)](https://pypi.org/project/mangadex-downloader)
@@ -80,7 +77,7 @@ The upscaler will perform scaling on all downloaded images. The process is cache
 
 For the best experience, especially on macOS, ensure you have the optional dependencies installed:
 ```shell
-pip install "mangadex-downloader[optional]"
+pip install "mangadex-downloader[optional,upscale]"
 ```
 
 ## Supported formats <a id="supported-formats"></a>
@@ -91,7 +88,8 @@ pip install "mangadex-downloader[optional]"
 
 What will you need:
 
-- Python 3.11 or 3.12 with Pip (3.10 and 3.13 are not supported). If you are in Windows, you can download bundled executable. [See this instructions how to install it](#installation-bundled-executable)
+- Python 3.10.x or up with Pip (if you are in Windows, you can download bundled executable. [See this instructions how to install it](#installation-bundled-executable))
+- If you plan to use the optional upscaling feature, install with Python > 3.10.x <= 3.12.x where the Real-ESRGAN toolkit currently provides wheels.
 
 That's it.
 
@@ -112,18 +110,18 @@ You can also install optional dependencies
 - [py7zr](https://pypi.org/project/py7zr/) for cb7 support
 - [orjson](https://pypi.org/project/orjson/) for maximum performance (fast JSON library)
 - [lxml](https://pypi.org/project/lxml/) for EPUB support
-- Real-ESRGAN upscaling:
+- Real-ESRGAN upscaling (requires Python > 3.10.x, <= 3.12.x):
   - **macOS**: `coremltools>=7.0`
   - **Linux/Windows**: `torch`, `torchvision`, `opencv-python`, `realesrgan`
 
-Or you can install all optional dependencies, which is recommended for the upscaling feature:
+Or you can install all optional dependencies together. For upscaling we recommend installing both the regular optional extras and the upscaling extras:
 
 ```shell
 # For Windows
-py -3 -m pip install mangadex-downloader[optional]
+py -3 -m pip install "mangadex-downloader[optional,upscale]"
 
 # For Mac OS / Linux
-python3 -m pip install mangadex-downloader[optional]
+python3 -m pip install "mangadex-downloader[optional,upscale]"
 ```
 
 There you go, easy ain't it ?.
@@ -244,7 +242,7 @@ If you like this project, please consider donate to one of these websites:
 
 - [Sociabuzz](https://sociabuzz.com/mansuf/donate)
 - [Ko-fi](https://ko-fi.com/rahmanyusuf)
-- [Github Sponsor](https://github.com/sponsors/lucasliet)
+- [Github Sponsor](https://github.com/sponsors/mansuf)
 
 Any donation amount will be appreciated 💖
 
